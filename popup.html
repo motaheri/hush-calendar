@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hush Calendar Settings</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title-row">
+                <img src="icons/icon128.png" class="header-logo" alt="Hush Calendar">
+                <h1>Hush Calendar</h1>
+            </div>
+            <p class="subtitle">Control your Calendar notifications</p>
+        </div>
+
+        <div class="section">
+            <h2>Tab Status</h2>
+            <div id="tabStatus" class="status-box">
+                <p id="calendarTabCount">Checking...</p>
+                <p id="activeTabInfo"></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Volume Control</h2>
+            <div class="control-group">
+                <label class="toggle-container">
+                    <input type="checkbox" id="volumeToggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Reduce notification volume</span>
+                </label>
+            </div>
+
+            <div class="control-group" id="volumeControl" style="display: none;">
+                <label for="volumeSlider" class="slider-label">
+                    Volume: <span id="volumeValue">50</span>%
+                </label>
+                <input type="range" id="volumeSlider" min="0" max="100" value="50" class="slider">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Appearance</h2>
+            <div class="control-group">
+                <label class="toggle-container">
+                    <input type="checkbox" id="faviconToggle" checked>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Show muted favicon</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Only one Calendar tab will play sounds</p>
+            <p class="shortcut-hint">Shortcut: <kbd>Ctrl+Shift+M</kbd> (Mac: <kbd>⌘+Shift+M</kbd>)</p>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+
+</html>
