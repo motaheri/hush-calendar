@@ -1,7 +1,8 @@
 // Background service worker for Hush Calendar
 
-// Track the active (unmuted) Google Calendar tab per window
-let activeCalendarTabIds = {}; // {windowId: tabId}
+// Track the single active (unmuted) Google Calendar tab globally
+// There should never be more than one unmuted Calendar tab at a time
+let activeCalendarTabId = null;
 
 // Main function to manage calendar tabs
 async function manageCalendarTabs() {
@@ -16,45 +17,40 @@ async function manageCalendarTabs() {
             return;
         }
 
-        // Group tabs by window
-        const tabsByWindow = {};
-        calendarTabs.forEach(tab => {
-            if (!tabsByWindow[tab.windowId]) tabsByWindow[tab.windowId] = [];
-            tabsByWindow[tab.windowId].push(tab);
-        });
+        // Find or set the single global active Calendar tab
+        let globalActiveId =
+            activeCalendarTabId &&
+                calendarTabs.find(t => t.id === activeCalendarTabId)
+                ? activeCalendarTabId
+                : null;
 
-        for (const windowId in tabsByWindow) {
-            const windowTabs = tabsByWindow[windowId];
+        if (!globalActiveId) {
+            const activeTab = calendarTabs.find(t => t.active);
+            globalActiveId = activeTab ? activeTab.id : calendarTabs[0].id;
+            activeCalendarTabId = globalActiveId;
+        }
 
-            // Find or set active tab for this window
-            let windowActiveId = activeCalendarTabIds[windowId] && windowTabs.find(t => t.id === activeCalendarTabIds[windowId]) ? activeCalendarTabIds[windowId] : null;
+        // Mute all Calendar tabs except the single active one
+        for (const tab of calendarTabs) {
+            const shouldMute = tab.id !== globalActiveId;
+            const currentlyMuted = tab.mutedInfo ? tab.mutedInfo.muted : false;
 
-            if (!windowActiveId) {
-                const activeTab = windowTabs.find(t => t.active);
-                windowActiveId = activeTab ? activeTab.id : windowTabs[0].id;
-                activeCalendarTabIds[windowId] = windowActiveId;
-            }
+            if (currentlyMuted !== shouldMute) {
+                await chrome.tabs.update(tab.id, { muted: shouldMute });
+                console.log(
+                    `Hush Calendar: Tab ${tab.id} ${shouldMute ? 'muted' : 'unmuted'} (global active: ${globalActiveId})`
+                );
 
-            // Mute all except active in this window
-            for (const tab of windowTabs) {
-                const shouldMute = tab.id !== windowActiveId;
-                const currentlyMuted = tab.mutedInfo ? tab.mutedInfo.muted : false;
-
-                if (currentlyMuted !== shouldMute) {
-                    await chrome.tabs.update(tab.id, { muted: shouldMute });
-                    console.log(`Hush Calendar: Tab ${tab.id} in window ${windowId} ${shouldMute ? 'muted' : 'unmuted'}`);
-
-                    try {
-                        await chrome.tabs.sendMessage(tab.id, {
-                            action: 'muteStatusChanged',
-                            isMuted: shouldMute
-                        }).catch(() => { });
-                    } catch (e) { }
-                }
+                try {
+                    await chrome.tabs.sendMessage(tab.id, {
+                        action: 'muteStatusChanged',
+                        isMuted: shouldMute
+                    }).catch(() => { });
+                } catch (e) { }
             }
         }
 
-        console.log(`Hush Calendar: Managing ${calendarTabs.length} calendar tabs across ${Object.keys(tabsByWindow).length} windows`);
+        console.log(`Hush Calendar: Managing ${calendarTabs.length} calendar tabs with 1 active globally`);
     } catch (error) {
         console.error('Error managing calendar tabs:', error);
     }
@@ -63,8 +59,8 @@ async function manageCalendarTabs() {
 // Set a specific tab as the active calendar tab
 async function setActiveCalendarTab(tabId) {
     chrome.tabs.get(tabId, (tab) => {
-        if (tab && tab.windowId) {
-            activeCalendarTabIds[tab.windowId] = tabId;
+        if (tab) {
+            activeCalendarTabId = tabId;
         }
     });
     await manageCalendarTabs();
@@ -109,12 +105,9 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 // Listen for tab removal
 chrome.tabs.onRemoved.addListener((tabId) => {
-    for (const windowId in activeCalendarTabIds) {
-        if (activeCalendarTabIds[windowId] === tabId) {
-            activeCalendarTabIds[windowId] = null;
-            manageCalendarTabs();
-            break;
-        }
+    if (activeCalendarTabId === tabId) {
+        activeCalendarTabId = null;
+        manageCalendarTabs();
     }
 });
 
@@ -132,7 +125,7 @@ chrome.tabs.onCreated.addListener((tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
         if (message.action === 'getActiveTab') {
-            sendResponse({ activeTabId: activeCalendarTabIds[sender.tab.windowId] });
+            sendResponse({ activeTabId: activeCalendarTabId });
             return false;
         } else if (message.action === 'setActiveTab') {
             setActiveCalendarTab(message.tabId).then(() => {
